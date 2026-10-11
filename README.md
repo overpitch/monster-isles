@@ -2,6 +2,10 @@
 
 A monster-collecting adventure made for (and designed by) Murilo. Explore four islands, catch 15 monsters, battle trainers, and play together with a friend in split screen. It runs in a web browser, including Microsoft Edge on Xbox with controllers.
 
+## Play online
+
+**https://overpitch.github.io/monster-isles/**
+
 **On Xbox:** open the game in Microsoft Edge, then **hold the Menu ☰ button** for about a second so the controller plays the game instead of moving the cursor.
 
 ## The game
