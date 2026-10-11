@@ -78,3 +78,54 @@ window.mash = (frames = 20000, seed = 1) => {
   } catch (e) { problems.push('CRASH: ' + e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' | ')); }
   return [...new Set(problems)];
 };
+
+/** Runs many complete battles with random choices. Reports any that freeze or crash. */
+window.battleStress = (count = 200, seed = 7) => {
+  let s = seed; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const sp = DEX_ORDER;
+  const team = () => Array.from({ length: 1 + Math.floor(r() * 3) }, () => makeMon(sp[Math.floor(r() * sp.length)], 3 + Math.floor(r() * 25)));
+  const problems = [], results = {};
+  const realUpdate = Fight.prototype.update;
+  for (let k = 0; k < count; k++) {
+    const kinds = ['wild', 'trainer', 'pvp', 'team-wild', 'team-trainer'];
+    const kind = kinds[k % kinds.length];
+    const p1 = newPlayer('x1', 0), p2 = newPlayer('x2', 1);
+    for (const p of [p1, p2]) { p.trainer = { name: 'T' + p.slot, party: team(), box: [], bag: { orb: 3, superorb: 1, potion: 2, revive: 1 }, money: 100, seen: {}, caught: {}, beaten: {} }; p.x = 1800; p.y = 3300; }
+    let f;
+    try {
+      if (kind === 'pvp') f = new Fight('pvp', p1, { player: p2 });
+      else if (kind.endsWith('trainer')) f = new Fight('trainer', p1, { npc: NPCS.find(n => n.kind === 'trainer') });
+      else f = new Fight('wild', p1, { wild: makeMon(sp[Math.floor(r() * sp.length)], 3 + Math.floor(r() * 25)) });
+      let joined = !kind.startsWith('team');
+      let frames = 0;
+      while (f.phase !== 'end' && frames < 60 * 60 * 10) {
+        frames++;
+        if (!joined && frames > 200) { f.join(p2); joined = true; }
+        if (f.phase === 'choose') {
+          for (const c of f.humans()) {
+            if (c.action || !alive(c.active)) continue;
+            const roll = r();
+            const foes = f.foesOf(c).filter(o => alive(o.active));
+            const healthy = c.party.filter(m => alive(m) && !f.isActive(m));
+            if (roll < 0.06 && f.kind === 'wild') c.action = { type: 'run' };
+            else if (roll < 0.12 && f.kind === 'wild' && c.owner.trainer.bag.orb > 0) c.action = { type: 'orb', item: 'orb', target: f.sides[1][0] };
+            else if (roll < 0.17 && healthy.length) c.action = { type: 'switch', mon: healthy[0] };
+            else if (roll < 0.2 && c.owner.trainer.bag.potion > 0 && c.active.hp < monStats(c.active).hp) c.action = { type: 'item', item: 'potion', mon: c.active };
+            else if (roll < 0.21 && f.kind === 'pvp') c.action = { type: 'forfeit' };
+            else c.action = { type: 'move', move: c.active.moves[Math.floor(r() * c.active.moves.length)], target: foes[Math.floor(r() * foes.length)] };
+          }
+        }
+        if (f.phase === 'replace') {
+          for (const c of f.humans()) if (c.needReplace) { const m = c.party.find(x => alive(x) && !f.isActive(x)); if (m) { c.active = m; c.needReplace = false; } }
+          if (!f.humans().some(c => c.needReplace)) f.phase = 'msg';
+        }
+        if (f.msg) f.msgT = 999;   // skip waiting on messages
+        realUpdate.call(f, {});
+        for (const c of f.sides[0].concat(f.sides[1])) for (const m of c.party) if (!Number.isFinite(m.hp) || m.hp < 0) { problems.push(`${kind}: bad HP`); }
+      }
+      if (f.phase !== 'end') problems.push(`${kind} #${k}: battle never ended (phase ${f.phase})`);
+      else results[kind + ':' + f.result] = (results[kind + ':' + f.result] || 0) + 1;
+    } catch (e) { problems.push(`${kind} #${k}: CRASH ${e.message} @ ${(e.stack || '').split('\n')[1]}`); }
+  }
+  return { problems: [...new Set(problems)].slice(0, 10), results };
+};

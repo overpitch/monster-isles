@@ -100,7 +100,7 @@ class Fight {
     // showing messages
     if (!this.msg) {
       const next = this.queue.shift();
-      if (!next) { this.phase = this.over ? 'end' : 'choose'; return; }
+      if (!next) { if (this.over) this.phase = 'end'; else this.startChoose(); return; }
       if (next.choose) { this.startChoose(); return; }
       if (next.end) { this.phase = 'end'; this.over = true; return; }
       this.msg = next; this.msgT = 0;
@@ -145,7 +145,10 @@ class Fight {
         if (o === 'FIGHT') { m.level = 'moves'; m.i = 0; }
         else if (o === 'BAG') { m.level = 'bag'; m.i = 0; }
         else if (o === 'TEAM') { m.level = 'team'; m.i = 0; }
-        else if (o === 'RUN') c.action = { type: 'run' };
+        else if (o === 'RUN') {
+          if (this.kind === 'trainer') { this.queue.unshift({ text: "You can't run from a trainer battle!" }); this.phase = 'msg'; this.queue.push({ choose: true }); }
+          else c.action = { type: 'run' };
+        }
         else if (o === 'GIVE UP') c.action = { type: 'forfeit' };
       }
     } else if (m.level === 'moves') {
@@ -467,7 +470,8 @@ class Fight {
   /** Draws the battle into a w×h area. `who` = the viewing player (null = shared screen). */
   draw(w, h, viewer) {
     // background
-    const isl = viewer ? islandAt(viewer.x, viewer.y) : null;
+    const where = viewer || this.players()[0];
+    const isl = where ? islandAt(where.x, where.y) : null;
     const bio = isl ? isl.biome : 0;
     const skies = [['#7dd3fc', '#e0f2fe'], ['#1e3a2b', '#4b7a55'], ['#7c2d12', '#fdba74'], ['#bfdbfe', '#f8fafc']];
     const g = ctx.createLinearGradient(0, 0, 0, h);

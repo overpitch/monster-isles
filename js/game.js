@@ -37,7 +37,7 @@ function loadTrainer(p, tr) {
   const spot = townSpot(0);
   p.x = tr.x ?? spot.x; p.y = tr.y ?? spot.y; p.face = tr.face || 'down';
   // never start inside something solid
-  if (solidAtPx(p.x, p.y)) { const s = townSpot(tr.center || 0); p.x = s.x; p.y = s.y; }
+  if (blocked(p.x, p.y)) { const s = townSpot(tr.center || 0); p.x = s.x; p.y = s.y; }
   p.mode = 'walk';
   if (!tr.party.length) startStarter(p);
 }
@@ -107,7 +107,12 @@ function updatePlayer(p, d) {
     case 'menu': updateMenu(p, d); break;
     case 'prompt': updatePrompt(p, d); break;
     case 'trade': updateTrade(p, d); break;
-    case 'waiting': if (d.specialP) { p.mode = 'walk'; const o = otherPlayer(p); if (o && o.mode === 'prompt') o.mode = 'walk'; } break;
+    case 'waiting': {
+      const o = otherPlayer(p);
+      if (!o || o.mode !== 'prompt') { p.mode = 'walk'; break; }
+      if (d.specialP) { p.mode = 'walk'; o.mode = 'walk'; o.prompt = null; }
+      break;
+    }
     case 'fight': if (!p.fight) p.mode = 'walk'; break;
   }
 }
@@ -267,7 +272,7 @@ function interact(p) {
   if (o && o.trainer && Math.hypot(o.x - ix, (o.y - 10) - iy) < 36) { openInteract(p, o); return; }
   for (const n of NPCS) {
     if (Math.hypot(n.x - ix, (n.y - 10) - iy) > 36) continue;
-    n.face = { up: 'down', down: 'up', left: 'right', right: 'left' }[p.face];
+    if (n.kind !== 'trainer') n.face = { up: 'down', down: 'up', left: 'right', right: 'left' }[p.face];   // trainers keep watching their path
     if (n.kind === 'prof') {
       if (!p.trainer.party.length) startStarter(p);
       else say(p, [`How's it going, ${p.trainer.name}?`, `You've caught ${Object.keys(p.trainer.caught).length} of ${DEX_ORDER.length} monsters so far. Keep exploring!`], null, n.name);
